@@ -15,7 +15,7 @@ from __future__ import absolute_import
 import ctypes
 import time
 from serial import win32
-
+import gc
 import serial
 from serial.serialutil import SerialBase, SerialException, to_bytes, PortNotOpenError, SerialTimeoutException
 
@@ -40,7 +40,16 @@ class Serial(SerialBase):
         if self._port is None:
             raise SerialException("Port must be configured before it can be used.")
         if self.is_open:
-            raise SerialException("Port is already open.")
+            if self.forced is True:
+                for instance in [o for o in gc.get_objects() if isinstance(o, Serial)]:
+                    if instance._port == self._port :
+                        instance.close()
+                        break
+                        
+            if self.forced is False:
+                raise SerialException("Port is already open.")
+            
+            
         # the "\\.\COMx" format is required for devices other than COM1-COM8
         # not all versions of windows seem to support this properly
         # so that the first few ports are used with the DOS device name
@@ -60,6 +69,20 @@ class Serial(SerialBase):
             win32.FILE_ATTRIBUTE_NORMAL | win32.FILE_FLAG_OVERLAPPED,
             0)
         if self._port_handle == win32.INVALID_HANDLE_VALUE:
+          if self.forced==True:
+                  for instance in [o for o in gc.get_objects() if isinstance(o, Serial)]:
+                      if instance._port == self._port :
+                          instance.close()
+                          self._port_handle = win32.CreateFile(
+                              port,
+                              win32.GENERIC_READ | win32.GENERIC_WRITE,
+                              0,  # exclusive access
+                              None,  # no security
+                              win32.OPEN_EXISTING,
+                              win32.FILE_ATTRIBUTE_NORMAL | win32.FILE_FLAG_OVERLAPPED,
+                              0)
+                          break
+          if self.forced == False:  
             self._port_handle = None    # 'cause __del__ is called anyway
             raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
 
@@ -219,6 +242,21 @@ class Serial(SerialBase):
         comDCB.XoffChar = serial.XOFF
 
         if not win32.SetCommState(self._port_handle, ctypes.byref(comDCB)):
+          if self.forced==True:
+                  for instance in [o for o in gc.get_objects() if isinstance(o, Serial)]:
+                      if instance._port == self._port :
+                          instance.close()
+                          self._port_handle = win32.CreateFile(
+                              self._port,
+                              win32.GENERIC_READ | win32.GENERIC_WRITE,
+                              0,  # exclusive access
+                              None,  # no security
+                              win32.OPEN_EXISTING,
+                              win32.FILE_ATTRIBUTE_NORMAL | win32.FILE_FLAG_OVERLAPPED,
+                              0)
+                          break
+              
+          if self.forced ==False:
             raise SerialException(
                 'Cannot configure port, something went wrong. '
                 'Original message: {!r}'.format(ctypes.WinError()))

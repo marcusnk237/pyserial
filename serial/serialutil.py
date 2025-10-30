@@ -190,13 +190,14 @@ class SerialBase(io.RawIOBase):
                  dsrdtr=False,
                  inter_byte_timeout=None,
                  exclusive=None,
+                 forced = False,
                  **kwargs):
         """\
         Initialize comm port object. If a "port" is given, then the port will be
         opened immediately. Otherwise a Serial port object in closed state
         is returned.
         """
-
+        self.forced = forced
         self.is_open = False
         self.portstr = None
         self.name = None
@@ -557,16 +558,6 @@ class SerialBase(io.RawIOBase):
             b[:n] = array.array('b', data)
         return n
 
-    def close(self):
-        # Do not call RawIOBase.close() as that will try to flush().
-        pass
-
-    @property
-    def closed(self):
-        # Overrides RawIOBase.closed, as RawIOBase can only be closed once,
-        # but a Serial object can be opened/closed multiple times.
-        return not self.is_open
-
     #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
     # context manager
 
@@ -663,7 +654,7 @@ class SerialBase(io.RawIOBase):
 
     def read_until(self, expected=LF, size=None):
         """\
-        Read until an expected sequence is found (line feed by default), the size
+        Read until an expected sequence is found ('\n' by default), the size
         is exceeded or until timeout occurs.
         """
         lenterm = len(expected)
